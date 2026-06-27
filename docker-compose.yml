@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+
+  # ─── Backend ───────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rickmorty_backend
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: development
+      MONGODB_URI: ${MONGODB_URI}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://rabbitmq
+      AUTH0_AUDIENCE: https://rickmorty-api/
+      AUTH0_ISSUER_BASE_URL: https://dev-sqefy6r87osts5th.us.auth0.com
+      AUTH0_CLIENT_ID: pO4siVKY1QRnFOZ11xxPXGytAQbbV1hu
+      SWAGGER_ENABLED: true
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - rickmorty_network
+    restart: unless-stopped
+
+  # ─── Frontend ──────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rickmorty_frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend
+    networks:
+      - rickmorty_network
+    restart: unless-stopped
+
+  # ─── Redis ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: rickmorty_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rickmorty_network
+    restart: unless-stopped
+
+  # ─── RabbitMQ ──────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rickmorty_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rickmorty_network
+    restart: unless-stopped
+
+# ─── Volúmenes ───────────────────────────────────────────
+volumes:
+  redis_data:
+  rabbitmq_data:
+
+# ─── Red ─────────────────────────────────────────────────
+networks:
+  rickmorty_network:
+    driver: bridge
