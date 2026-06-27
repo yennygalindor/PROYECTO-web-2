@@ -1,7 +1,16 @@
 const router = require('express').Router();
 const authMiddleware = require('../../config/auth0');
 const syncUser = require('../../common/middlewares/syncUser');
-const { getCharacters, getCharacterById, getCharacterStats, getCharactersByIds } = require('./character.controller');
+const { validateSchema } = require('../../common/middlewares/validation');
+const { characterFiltersSchema } = require('../../common/validation/schemas');
+const { 
+  getCharacters, 
+  searchCharacters,
+  getCharacterById, 
+  getCharacterStats, 
+  getCharactersByIds,
+  exportCharacters
+} = require('./character.controller');
 
 router.use(authMiddleware);
 router.use(syncUser);
@@ -10,7 +19,7 @@ router.use(syncUser);
  * @swagger
  * /api/characters:
  *   get:
- *     summary: Obtener lista de personajes
+ *     summary: Obtener lista de personajes con filtros avanzados
  *     tags: [Characters]
  *     security:
  *       - bearerAuth: []
@@ -29,20 +38,61 @@ router.use(syncUser);
  *         name: status
  *         schema:
  *           type: string
- *           enum: [Alive, Dead, unknown]
+ *           enum: [alive, dead, unknown]
  *         description: Filtrar por estado
  *       - in: query
  *         name: species
  *         schema:
  *           type: string
  *         description: Filtrar por especie
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *         description: Filtrar por tipo
+ *       - in: query
+ *         name: gender
+ *         schema:
+ *           type: string
+ *           enum: [female, male, genderless, unknown]
+ *         description: Filtrar por género
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *         description: Ordenar por campo (ej. name, -name para descendente)
  *     responses:
  *       200:
  *         description: Lista de personajes paginada
  *       401:
  *         description: No autenticado
  */
-router.get('/', getCharacters);
+router.get('/', validateSchema(characterFiltersSchema, 'query'), getCharacters);
+
+/**
+ * @swagger
+ * /api/characters/search:
+ *   get:
+ *     summary: Buscar personajes por texto
+ *     tags: [Characters]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Término de búsqueda
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Resultados de búsqueda
+ */
+router.get('/search', searchCharacters);
 
 /**
  * @swagger
@@ -57,6 +107,35 @@ router.get('/', getCharacters);
  *         description: Estadísticas generales de personajes
  */
 router.get('/stats', getCharacterStats);
+
+/**
+ * @swagger
+ * /api/characters/export:
+ *   get:
+ *     summary: Exportar personajes (JSON, CSV, Excel)
+ *     tags: [Characters]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [json, csv, excel, xlsx]
+ *           default: json
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: species
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Datos exportados
+ */
+router.get('/export', exportCharacters);
 
 /**
  * @swagger
