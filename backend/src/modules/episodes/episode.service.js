@@ -1,45 +1,17 @@
 const rickMortyClient = require('../../common/utils/httpClient');
 const { getCache, setCache } = require('../../config/redis');
-const { buildApiFilters, sortArray } = require('../../common/utils/queryBuilder');
 
 const getEpisodes = async (page = 1, filters = {}) => {
-  const { name, episode, sort } = filters;
-  
-  const allowedFilters = ['name', 'episode'];
-  const apiParams = buildApiFilters(filters, allowedFilters);
-  
-  const cacheKey = `episodes:${page}:${JSON.stringify(apiParams)}:${sort || ''}`;
+  const { name, episode } = filters;
+  const cacheKey = `episodes:${page}:${name||''}:${episode||''}`;
+
   const cached = await getCache(cacheKey);
   if (cached) return { ...cached, fromCache: true };
 
-  const params = { page, ...apiParams };
-  let data = await rickMortyClient.get('/episode', { params });
-
-  // Aplicar ordenamiento personalizado
-  if (sort && data.results) {
-    const [field, order] = sort.startsWith('-') 
-      ? [sort.substring(1), 'desc'] 
-      : [sort, 'asc'];
-    data.results = sortArray(data.results, field, order);
-  }
+  const params = { page, ...(name && { name }), ...(episode && { episode }) };
+  const data = await rickMortyClient.get('/episode', { params });
 
   await setCache(cacheKey, data, 3600);
-  return data;
-};
-
-/**
- * Buscar episodios por texto
- */
-const searchEpisodes = async (searchTerm, page = 1) => {
-  const cacheKey = `episodes:search:${searchTerm}:${page}`;
-  const cached = await getCache(cacheKey);
-  if (cached) return { ...cached, fromCache: true };
-
-  const data = await rickMortyClient.get('/episode', { 
-    params: { name: searchTerm, page } 
-  });
-
-  await setCache(cacheKey, data, 1800);
   return data;
 };
 
@@ -73,21 +45,4 @@ const getEpisodeStats = async () => {
   return stats;
 };
 
-/**
- * Exportar episodios
- */
-const exportEpisodes = async (filters = {}) => {
-  const allowedFilters = ['name', 'episode'];
-  const apiParams = buildApiFilters(filters, allowedFilters);
-  
-  const data = await rickMortyClient.get('/episode', { params: apiParams });
-  return data.results || [];
-};
-
-module.exports = { 
-  getEpisodes, 
-  getEpisodeById, 
-  getEpisodeStats, 
-  searchEpisodes, 
-  exportEpisodes 
-};
+module.exports = { getEpisodes, getEpisodeById, getEpisodeStats };

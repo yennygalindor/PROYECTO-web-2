@@ -1,9 +1,7 @@
 const router = require('express').Router();
 const authMiddleware = require('../../config/auth0');
 const syncUser = require('../../common/middlewares/syncUser');
-const { validateSchema } = require('../../common/middlewares/validation');
-const { episodeFiltersSchema } = require('../../common/validation/schemas');
-const { getEpisodes, getEpisodeById, getEpisodeStats, searchEpisodes, exportEpisodes } = require('./episode.controller');
+const { getEpisodes, getEpisodeById, getEpisodeStats } = require('./episode.controller');
 
 router.use(authMiddleware);
 router.use(syncUser);
@@ -12,7 +10,7 @@ router.use(syncUser);
  * @swagger
  * /api/episodes:
  *   get:
- *     summary: Obtener lista de episodios con filtros avanzados
+ *     summary: Obtener lista de episodios
  *     tags: [Episodes]
  *     security:
  *       - bearerAuth: []
@@ -30,56 +28,11 @@ router.use(syncUser);
  *         schema:
  *           type: string
  *         description: Código del episodio (ej. S01E01)
- *       - in: query
- *         name: sort
- *         schema:
- *           type: string
- *         description: Ordenar por campo (ej. name, -episode)
  *     responses:
  *       200:
  *         description: Lista de episodios paginada
  */
-router.get('/', validateSchema(episodeFiltersSchema, 'query'), getEpisodes);
-
-/**
- * @swagger
- * /api/episodes/search:
- *   get:
- *     summary: Buscar episodios por texto
- *     tags: [Episodes]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: q
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Resultados de búsqueda
- */
-router.get('/search', searchEpisodes);
-
-/**
- * @swagger
- * /api/episodes/export:
- *   get:
- *     summary: Exportar episodios (JSON, CSV, Excel)
- *     tags: [Episodes]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: format
- *         schema:
- *           type: string
- *           enum: [json, csv, excel, xlsx]
- *     responses:
- *       200:
- *         description: Datos exportados
- */
-router.get('/export', exportEpisodes);
+router.get('/', getEpisodes);
 
 /**
  * @swagger

@@ -1,8 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const dotenv = require('dotenv');
-const path = require('path');
 
 dotenv.config();
 
@@ -11,55 +12,57 @@ const { connectRedis } = require('./config/redis');
 const { connectRabbitMQ, consumeMessages } = require('./config/rabbitmq');
 const { requestLogger } = require('./common/middlewares/logger');
 const { errorHandler, notFound } = require('./common/middlewares/errorHandler');
-const { rateLimit } = require('./common/middlewares/rateLimiter');
 
+// Configuraciones
+const corsOptions = require('./config/cors');
+const compressionOptions = require('./config/compression');
+
+// Rutas
 const userRoutes = require('./modules/users/user.routes');
 const characterRoutes = require('./modules/characters/character.routes');
 const locationRoutes = require('./modules/locations/location.routes');
 const episodeRoutes = require('./modules/episodes/episode.routes');
 const favoriteRoutes = require('./modules/favorites/favorite.routes');
-const fileRoutes = require('./modules/files/file.routes');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 
-
 const app = express();
 
-// Configuración de CORS desde variables de entorno
-const corsOrigins = process.env.CORS_ORIGINS 
-  ? process.env.CORS_ORIGINS.split(',') 
-  : ['http://localhost:4200', 'http://localhost:3000'];
+// ===== SEGURIDAD Y MIDDLEWARE DE OPTIMIZACIÓN =====
 
-app.use(cors({
-  origin: corsOrigins,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: true,
-  maxAge: 86400 // 24 horas
+// Helmet: Configurar headers de seguridad HTTP
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false // Desactivar CSP para desarrollo
 }));
 
-// Compresión HTTP
-if (process.env.COMPRESSION_ENABLED === 'true') {
-  app.use(compression({
-    threshold: parseInt(process.env.COMPRESSION_THRESHOLD) || 1024,
-    level: 6
-  }));
-}
+// CORS avanzado
+app.use(cors(corsOptions));
 
+// Compresión HTTP (GZIP)
+app.use(compression(compressionOptions));
+
+// Rate limiting: Limitar solicitudes por IP
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // límite de 100 solicitudes por ventana
+  message: {
+    success: false,
+    message: 'Demasiadas solicitudes desde esta IP, intente más tarde'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Aplicar rate limiting general a todas las rutas API
+app.use('/api/', limiter);
+
+// Parse JSON bodies
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Servir archivos estáticos del directorio de uploads
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
+// Logger de solicitudes
 app.use(requestLogger);
-
-// Rate limiting global
-app.use(rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100,
-  message: 'Demasiadas solicitudes desde esta IP, por favor intenta más tarde'
-}));
 // En app.js antes de las rutas protegidas
 app.get('/api/health', (req, res) => {
   res.json({
@@ -86,12 +89,12 @@ if (process.env.SWAGGER_ENABLED === 'true') {
 
   console.log('📄 Swagger disponible en http://localhost:3000/api/docs');
 }
+// Rutas de la API
 app.use('/api/users', userRoutes);
 app.use('/api/characters', characterRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/episodes', episodeRoutes);
 app.use('/api/favorites', favoriteRoutes);
-app.use('/api/files', fileRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: '🚀 Rick & Morty API funcionando!' });

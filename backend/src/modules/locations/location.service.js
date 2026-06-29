@@ -1,45 +1,17 @@
 const rickMortyClient = require('../../common/utils/httpClient');
 const { getCache, setCache } = require('../../config/redis');
-const { buildApiFilters, sortArray } = require('../../common/utils/queryBuilder');
 
 const getLocations = async (page = 1, filters = {}) => {
-  const { name, type, dimension, sort } = filters;
-  
-  const allowedFilters = ['name', 'type', 'dimension'];
-  const apiParams = buildApiFilters(filters, allowedFilters);
-  
-  const cacheKey = `locations:${page}:${JSON.stringify(apiParams)}:${sort || ''}`;
+  const { name, type, dimension } = filters;
+  const cacheKey = `locations:${page}:${name||''}:${type||''}:${dimension||''}`;
+
   const cached = await getCache(cacheKey);
   if (cached) return { ...cached, fromCache: true };
 
-  const params = { page, ...apiParams };
-  let data = await rickMortyClient.get('/location', { params });
-
-  // Aplicar ordenamiento personalizado
-  if (sort && data.results) {
-    const [field, order] = sort.startsWith('-') 
-      ? [sort.substring(1), 'desc'] 
-      : [sort, 'asc'];
-    data.results = sortArray(data.results, field, order);
-  }
+  const params = { page, ...(name && { name }), ...(type && { type }), ...(dimension && { dimension }) };
+  const data = await rickMortyClient.get('/location', { params });
 
   await setCache(cacheKey, data, 3600);
-  return data;
-};
-
-/**
- * Buscar locaciones por texto
- */
-const searchLocations = async (searchTerm, page = 1) => {
-  const cacheKey = `locations:search:${searchTerm}:${page}`;
-  const cached = await getCache(cacheKey);
-  if (cached) return { ...cached, fromCache: true };
-
-  const data = await rickMortyClient.get('/location', { 
-    params: { name: searchTerm, page } 
-  });
-
-  await setCache(cacheKey, data, 1800);
   return data;
 };
 
@@ -73,21 +45,4 @@ const getLocationStats = async () => {
   return stats;
 };
 
-/**
- * Exportar locaciones
- */
-const exportLocations = async (filters = {}) => {
-  const allowedFilters = ['name', 'type', 'dimension'];
-  const apiParams = buildApiFilters(filters, allowedFilters);
-  
-  const data = await rickMortyClient.get('/location', { params: apiParams });
-  return data.results || [];
-};
-
-module.exports = { 
-  getLocations, 
-  getLocationById, 
-  getLocationStats, 
-  searchLocations, 
-  exportLocations 
-};
+module.exports = { getLocations, getLocationById, getLocationStats };

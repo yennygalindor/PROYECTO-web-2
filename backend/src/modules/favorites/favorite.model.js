@@ -5,44 +5,28 @@ const favoriteSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
-      index: true
+      required: true
     },
-    resourceType: {
+    type: {
       type: String,
-      enum: ['character', 'location', 'episode'],
-      required: true,
-      lowercase: true,
-      index: true
+      enum: ['CHARACTER', 'LOCATION', 'EPISODE'],
+      required: true
     },
-    resourceId: {
+    externalId: {
       type: Number,
-      required: true,
-      index: true
+      required: true
     },
-    notes: {
-      type: String,
-      maxlength: 500,
-      trim: true
+    name: {
+      type: String
+    },
+    image: {
+      type: String
     }
   },
-  { 
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-  }
+  { timestamps: true }
 );
 
 // Índice único para evitar duplicados por usuario
-favoriteSchema.index(
-  { userId: 1, resourceType: 1, resourceId: 1 }, 
-  { unique: true }
-);
-
-// Índice para búsqueda de texto
-favoriteSchema.index({ notes: 'text' });
-
-// Índice compuesto para filtros y ordenamiento
-favoriteSchema.index({ userId: 1, createdAt: -1 });
+favoriteSchema.index({ userId: 1, type: 1, externalId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Favorite', favoriteSchema);
